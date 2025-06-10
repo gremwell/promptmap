@@ -6,6 +6,7 @@ import glob
 import subprocess
 import time
 from typing import Dict, List, Optional
+import importlib
 import openai
 from openai import OpenAI
 import anthropic
@@ -90,8 +91,15 @@ def validate_api_keys(model_type: str):
         raise ValueError("OPENAI_API_KEY environment variable is required for OpenAI models")
     elif model_type == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
         raise ValueError("ANTHROPIC_API_KEY environment variable is required for Anthropic models")
+    elif model_type == "custom":
+        try:
+            custom = importlib.import_module("custom")
+            if hasattr(custom, "validate_api_keys"):
+                custom.validate_api_keys()
+        except Exception as e:
+            raise ValueError(f"Custom model API key validation failed: {e}")
 
-def initialize_client(model_type: str):
+def initialize_client(model_type: str, model: str | None = None):
     """Initialize the appropriate client based on the model type."""
     if model_type == "openai":
         return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -101,6 +109,11 @@ def initialize_client(model_type: str):
         if not is_ollama_running():
             if not start_ollama():
                 raise RuntimeError("Failed to start Ollama server")
+        return None
+    elif model_type == "custom":
+        custom = importlib.import_module("custom")
+        if hasattr(custom, "initialize_client"):
+            return custom.initialize_client(model)
         return None
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
@@ -151,7 +164,12 @@ def test_prompt(client, model: str, model_type: str, system_prompt: str, test_pr
                 ]
             )
             return response['message']['content'], False
-            
+        elif model_type == "custom":
+            custom = importlib.import_module("custom")
+            if hasattr(custom, "test_prompt"):
+                return custom.test_prompt(client, model, system_prompt, test_prompt)
+            raise RuntimeError("custom.py must define test_prompt")
+
     except Exception as e:
         return f"Error: {str(e)}", True
 
@@ -349,7 +367,7 @@ def run_tests(model: str, model_type: str, system_prompts_path: str, iterations:
     """Run all tests and return results."""
     print("\nTest started...")
     validate_api_keys(model_type)
-    client = initialize_client(model_type)
+    client = initialize_client(model_type, model)
     system_prompt = load_system_prompts(system_prompts_path)
     results = {}
     
@@ -446,6 +464,16 @@ def validate_model(model: str, model_type: str, auto_yes: bool = False) -> bool:
                 print("Download cancelled")
                 return False
             
+    elif model_type == "custom":
+        try:
+            custom = importlib.import_module("custom")
+            if hasattr(custom, "validate_model"):
+                return custom.validate_model(model)
+            return True
+        except Exception as e:
+            print(f"Error validating custom model: {e}")
+            return False
+
     return True
 
 def show_help():
@@ -462,13 +490,15 @@ Usage Examples:
 3. Test with Ollama:
    python promptmap2.py --model llama2 --model-type ollama
 
-4. Run specific rules:
+4. Test with a custom model:
+   python promptmap2.py --model sshleifer/tiny-gpt2 --model-type custom
+5. Run specific rules:
    python promptmap2.py --model gpt-4 --model-type openai --rules prompt_stealer,distraction_basic
 
-5. Custom options:
+6. Custom options:
    python promptmap2.py --model gpt-4 --model-type openai --iterations 3 --output results_gpt4.json
 
-6. Firewall testing mode:
+7. Firewall testing mode:
    python promptmap2.py --model gpt-4 --model-type openai --firewall --pass-condition="true"
    # In firewall mode, tests pass only if the response contains the specified string
    # and is not more than twice its length
@@ -492,8 +522,8 @@ def main():
     parser = argparse.ArgumentParser(description="Test LLM system prompts against injection attacks")
     parser.add_argument("--prompts", default="system-prompts.txt", help="Path to system prompts file")
     parser.add_argument("--model", required=True, help="LLM model name")
-    parser.add_argument("--model-type", required=True, choices=["openai", "anthropic", "ollama"], 
-                       help="Type of the model (openai, anthropic, ollama)")
+    parser.add_argument("--model-type", required=True, choices=["openai", "anthropic", "ollama", "custom"],
+                       help="Type of the model (openai, anthropic, ollama, custom)")
     parser.add_argument("--severity", type=lambda s: [item.strip() for item in s.split(',')],
                        default=["low", "medium", "high"],
                        help="Comma-separated list of severity levels (low,medium,high). Defaults to all severities.")
