@@ -80,12 +80,17 @@ python promptmap2.py --model "llama2:7b" --model-type ollama
 # If the model is not installed, promptmap will ask you to download it. If you want to download it automatically, you can use `-y` flag.
 ```
 
-4. JSON output:
+4. Test with a custom model:
+```bash
+python promptmap2.py --model sshleifer/tiny-gpt2 --model-type custom
+```
+
+5. JSON output:
 ```bash
 python promptmap2.py --model gpt-4 --model-type openai --output results.json
 ```
 
-5. Custom number of test iterations:
+6. Custom number of test iterations:
 
 LLM applications may appear not vulnerable to prompt injection on the first attempt. However, they often reveal vulnerabilities after multiple tries. The iteration count represents the number of attempts, with a default value of 5. You can increase this number as needed.
 
@@ -93,7 +98,7 @@ LLM applications may appear not vulnerable to prompt injection on the first atte
 python promptmap2.py --model llama2 --model-type ollama --iterations 10
 ```
 
-6. Running Specific Rules
+7. Running Specific Rules
 
 You can choose to run specific test rules instead of running all rules. 
 
@@ -102,7 +107,7 @@ You can choose to run specific test rules instead of running all rules.
 python promptmap2.py --model gpt-4 --model-type openai --rules prompt_stealer,distraction_basic
 ```
 
-7. Filtering by Severity Level
+8. Filtering by Severity Level
 
 Each rule in promptmap2 has a severity level (low, medium, or high) indicating its potential impact. You can filter rules based on their severity to focus on specific risk levels.
 
